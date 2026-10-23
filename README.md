@@ -38,6 +38,7 @@ Option B — check financial calculations:
 - Use Activity → Export CSV to make an extra transaction backup and store it somewhere private.
 - This MVP does not connect to BDO, UnionBank, GCash, or any bank/payment account. Do not enter bank credentials, PINs, CVVs, or one-time passwords into Xpense.
 - The receipt selector currently stores a record type and a text reference only. It does not upload or retain actual receipt images or PDFs.
+- A Supabase schema migration is checked into this repository as a cloud-backend foundation. It is not yet applied to a dedicated Xpense Supabase project, and the deployed app does not sync personal data to Supabase yet.
 
 ## Scope boundaries
 
@@ -56,6 +57,12 @@ Before real users' financial information is stored in the cloud, add secure auth
     │   └── styles.css
     ├── tests/
     │   └── ledger.test.cjs
+    ├── supabase/
+    │   ├── config.toml
+    │   └── migrations/
+    │       └── 20261023190000_phase1_schema.sql
+    ├── .github/workflows/
+    │   └── ci.yml
     └── docs/
         ├── data-model.md
         └── phase-1-spec.md
