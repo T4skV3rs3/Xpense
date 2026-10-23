@@ -8,7 +8,7 @@
 | Accounts and balances | User | That user |
 | Personal transactions, notes and evidence references | User | That user |
 | Personal categories and budgets | User | That user |
-| Household name and active membership roster | Household | Active members |
+| Household name, active membership roster, and household display aliases | Household | Active members |
 | Household categories and monthly budgets | Household | Active members |
 | Household entries, contributions and refunds | Household | Active members |
 | Invitation token hashes and invitation metadata | Internal | Constrained server-side database functions only |
@@ -21,7 +21,7 @@ Household membership never grants access to personal data. The existing owner-on
 
 **Member:** accepts the invite, can manage normal shared entries/categories/budgets, and can leave the household. They cannot remove the owner or invite a third person.
 
-Both roles can create, read, edit, and delete ordinary household budget entries. Entry creator attribution is immutable; the latest editor is tracked separately.
+Both roles can create, read, edit, and delete ordinary household budget entries. Entry creator attribution is immutable; the latest editor is tracked separately. Each user can change their own household display alias without exposing their private profile row.
 
 ## Database enforcement
 

@@ -22,6 +22,7 @@ create table if not exists public.household_members (
   household_id uuid not null references public.households (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete restrict,
   role text not null check (role in ('owner', 'member')),
+  display_name text not null check (char_length(trim(display_name)) between 1 and 80),
   joined_at timestamptz not null default now(),
   left_at timestamptz,
   created_at timestamptz not null default now(),
@@ -167,6 +168,7 @@ as $$
 declare
   v_user_id uuid := (select auth.uid());
   v_name text := nullif(btrim(p_name), '');
+  v_display_name text;
   v_household_id uuid;
 begin
   if v_user_id is null then
@@ -176,12 +178,17 @@ begin
     raise exception 'Household name must contain 1 to 60 characters' using errcode = '22023';
   end if;
 
+  select coalesce(nullif(btrim(p.display_name), ''), 'Owner')
+    into v_display_name
+    from public.profiles p where p.id = v_user_id;
+  v_display_name := coalesce(v_display_name, 'Owner');
+
   insert into public.households (name, created_by)
   values (v_name, v_user_id)
   returning id into v_household_id;
 
-  insert into public.household_members (household_id, user_id, role)
-  values (v_household_id, v_user_id, 'owner');
+  insert into public.household_members (household_id, user_id, role, display_name)
+  values (v_household_id, v_user_id, 'owner', v_display_name);
 
   return v_household_id;
 end;
@@ -273,6 +280,7 @@ declare
   v_household_id uuid;
   v_invitation public.household_invitations%rowtype;
   v_active_members integer;
+  v_display_name text;
 begin
   if v_user_id is null then
     raise exception 'Sign in before accepting an invitation' using errcode = '28000';
@@ -324,6 +332,11 @@ begin
     raise exception 'Sign in with the email address this invitation was sent to' using errcode = '42501';
   end if;
 
+  select coalesce(nullif(btrim(p.display_name), ''), 'Member')
+    into v_display_name
+    from public.profiles p where p.id = v_user_id;
+  v_display_name := coalesce(v_display_name, 'Member');
+
   select count(*) into v_active_members
   from public.household_members hm
   where hm.household_id = v_household_id and hm.left_at is null;
@@ -341,10 +354,10 @@ begin
     raise exception 'The household owner cannot accept their own invitation' using errcode = '23514';
   end if;
 
-  insert into public.household_members (household_id, user_id, role)
-  values (v_household_id, v_user_id, 'member')
+  insert into public.household_members (household_id, user_id, role, display_name)
+  values (v_household_id, v_user_id, 'member', v_display_name)
   on conflict (household_id, user_id)
-  do update set joined_at = now(), left_at = null
+  do update set joined_at = now(), left_at = null, display_name = excluded.display_name
   where public.household_members.role = 'member';
 
   if not found then
@@ -414,6 +427,39 @@ begin
   end if;
 end;
 $$;
+
+
+create or replace function public.set_xpense_household_display_name(
+  p_household_id uuid,
+  p_display_name text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_user_id uuid := (select auth.uid());
+  v_display_name text := nullif(btrim(p_display_name), '');
+begin
+  if v_user_id is null then
+    raise exception 'Sign in before changing your household display name' using errcode = '28000';
+  end if;
+  if v_display_name is null or char_length(v_display_name) > 80 then
+    raise exception 'Household display name must contain 1 to 80 characters' using errcode = '22023';
+  end if;
+
+  update public.household_members
+    set display_name = v_display_name
+    where household_id = p_household_id
+      and user_id = v_user_id
+      and left_at is null;
+
+  if not found then
+    raise exception 'Active household membership not found' using errcode = 'P0002';
+  end if;
+end;
+$;
 
 -- Keep audit identity stable while allowing either active household member to manage shared entries.
 create or replace function private.guard_household_entry_audit()
@@ -521,12 +567,14 @@ revoke all on function public.create_household_invitation(uuid, text) from publi
 revoke all on function public.accept_household_invitation(text) from public, anon, authenticated;
 revoke all on function public.leave_xpense_household(uuid) from public, anon, authenticated;
 revoke all on function public.remove_xpense_household_member(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.set_xpense_household_display_name(uuid, text) from public, anon, authenticated;
 
 grant execute on function public.create_xpense_household(text) to authenticated;
 grant execute on function public.create_household_invitation(uuid, text) to authenticated;
 grant execute on function public.accept_household_invitation(text) to authenticated;
 grant execute on function public.leave_xpense_household(uuid) to authenticated;
 grant execute on function public.remove_xpense_household_member(uuid, uuid) to authenticated;
+grant execute on function public.set_xpense_household_display_name(uuid, text) to authenticated;
 
 comment on table public.household_entries is
   'Shared household budget ledger only. Entries do not mutate either member private accounts or personal transaction ledger.';

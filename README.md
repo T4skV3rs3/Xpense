@@ -73,7 +73,7 @@ See LICENSE in this repository.
 
 ## Phase 2 direction: private finances plus a shared household budget
 
-The next release is designed for two people. Personal accounts, balances, income, debts and transactions stay private to each account owner; a separate household space holds shared budget limits, expense entries, contributions and refunds. Household membership does not grant access to a partner's personal ledger.
+The next release is designed for two people. Personal accounts, balances, income, debts and transactions stay private to each account owner; a separate household space holds shared budget limits, expense entries, contributions and refunds. Household membership does not grant access to a partner's personal ledger. Shared attribution uses a household-only display alias, not access to private profile details.
 
 - Product and rollout plan: [Phase 2 — Two-person household](docs/phase-2-two-person-spec.md)
 - Database access boundaries: [Privacy and permission model](docs/permissions-model.md)

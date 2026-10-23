@@ -6,12 +6,12 @@ Let two people maintain their own private finances while collaborating on a shar
 
 ## Product boundary
 
-- Each person has their own authenticated account and profile.
+- Each person has their own authenticated account and profile. The household stores a separate display alias for shared attribution; the partner's private profile row is not exposed.
 - Personal accounts, opening balances, transaction history, income, debts, private budgets, notes, and evidence references remain visible only to their owner.
 - The household workspace contains only entries deliberately recorded as shared, household categories, household monthly limits, contributions, refunds, and member attribution.
 - The household has one owner and one member maximum in this release. Invitation acceptance is single-use, expires after seven days, and must match the verified email of the signed-in user.
 - Either active member may record, view, edit, or delete ordinary household entries and manage household categories and budget limits.
-- The owner may create/revoke the current invite, rename/delete the household, and remove the member. The member may leave. Ownership transfer and owner self-removal are deferred; deleting the household permanently removes its shared data.
+- The owner may create/revoke the current invite, rename/delete the household, and remove the member. Each person can edit their own household display alias. The member may leave. Ownership transfer and owner self-removal are deferred; deleting the household permanently removes its shared data.
 - No bank APIs, paid notification service, receipt-file storage, OCR, or paid analytics are required for this scope.
 
 ## Ledger and budget semantics
