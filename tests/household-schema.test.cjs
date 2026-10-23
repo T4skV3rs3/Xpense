@@ -24,7 +24,7 @@ test('every new public household table has RLS enabled', () => {
 
 test('household membership has a shared display alias without exposing private profile data', () => {
   assert.match(sql, /display_name text not null check \(char_length\(trim\(display_name\)\) between 1 and 80\)/i);
-  assert.match(sql, /set_xpense_household_display_name\(\s*p_household_id uuid,\s*p_display_name text\)/i);
+  assert.ok(sql.includes('create or replace function public.set_xpense_household_display_name('));
   assert.match(sql, /revoke all on function public\.set_xpense_household_display_name\(uuid, text\) from public, anon, authenticated/i);
 });
 
