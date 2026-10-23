@@ -1,0 +1,30 @@
+name: Xpense Phase 1 checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify financial calculations
+        run: npm test
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/ledger.js
+          node --check src/app.js
+      - name: Check app entrypoint references
+        run: |
+          node -e "const fs=require('fs'); const html=fs.readFileSync('index.html','utf8'); for (const p of ['src/styles.css','src/ledger.js','src/app.js']) { if (!html.includes(p)) throw new Error('Missing entrypoint reference: '+p); if (!fs.existsSync(p)) throw new Error('Missing app file: '+p); } console.log('Entrypoint references OK');"
