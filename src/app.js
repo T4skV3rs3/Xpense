@@ -18,7 +18,7 @@
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const money = (n, decimals = 2) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(n) || 0);
   const compactMoney = n => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', notation: Math.abs(n) >= 100000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(n) >= 100000 ? 1 : 0 }).format(Number(n) || 0);
-  const esc = value => String(value ?? '').replace(/[&<>\"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[ch]));
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const fmtDate = value => {
     if (!value) return '\u2014';
     const d = new Date(`${value}T12:00:00`);
