@@ -1,4 +1,4 @@
-name: Xpense Phase 1 checks
+name: Xpense checks (Phase 1 and Phase 2 schema)
 
 on:
   push:

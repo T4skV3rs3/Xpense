@@ -4,8 +4,10 @@
   "private": true,
   "description": "Manual-first personal finance tracker Phase 1 MVP",
   "scripts": {
-    "test": "node --test tests/ledger.test.cjs",
+    "test": "node --test tests/*.test.cjs",
     "start": "python3 -m http.server 8000"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }

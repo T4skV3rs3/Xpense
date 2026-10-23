@@ -70,3 +70,13 @@ Before real users' financial information is stored in the cloud, add secure auth
 ## License
 
 See LICENSE in this repository.
+
+## Phase 2 direction: private finances plus a shared household budget
+
+The next release is designed for two people. Personal accounts, balances, income, debts and transactions stay private to each account owner; a separate household space holds shared budget limits, expense entries, contributions and refunds. Household membership does not grant access to a partner's personal ledger.
+
+- Product and rollout plan: [Phase 2 — Two-person household](docs/phase-2-two-person-spec.md)
+- Database access boundaries: [Privacy and permission model](docs/permissions-model.md)
+- Additive schema foundation: [Two-person household migration](supabase/migrations/20261024120000_two_person_households.sql)
+
+**Status:** Phase 2 is not live yet. The frontend still uses localStorage, the household migration is not applied to Supabase, and sign-in/cloud sync are not wired into the UI. Do not treat the current deployment as a cloud-backed or multi-user financial app.

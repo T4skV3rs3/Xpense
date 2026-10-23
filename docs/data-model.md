@@ -51,3 +51,11 @@ Transfers use `fromAccountId` and `toAccountId` instead of `accountId`. Reconcil
 ## Upgrade path (not implemented)
 
 Future multi-user/cloud versions should migrate these objects into authenticated server-side tables (for example, `profiles`, `accounts`, `transactions`, `budgets`, `categories`, and later `attachments`) with strict ownership policies, server-side validation, backups, deletion/export workflows and a security review. Do not directly expose this local prototype's data model as a production financial API.
+
+## Phase 2 data boundary (planned; not yet connected)
+
+The new household migration deliberately leaves the Phase 1 tables and owner-only RLS policies unchanged. It adds separate household tables for memberships, categories, monthly budgets, and shared budget entries. The invitation table has RLS enabled but no client grants; constrained database functions create and consume invitations.
+
+Household entries are budget projections and do not modify private account balances, personal net worth, or personal income/expense totals. A future one-step personal-plus-household entry flow must perform both writes atomically and keep any cross-reference in a non-exposed private schema. Do not loosen the personal policies to make shared entries work.
+
+See docs/phase-2-two-person-spec.md and docs/permissions-model.md for behavior and acceptance tests. Migration not applied; RLS/API integration tests remain required.
