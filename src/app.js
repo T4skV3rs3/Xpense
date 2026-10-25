@@ -131,8 +131,8 @@
   function accountsList() { return [...data.accounts]; }
   function accountMap() { return Object.fromEntries(data.accounts.map(a => [a.id, a])); }
   function categoriesFor(kind) {
-    const base = kind === 'income' ? L.INCOME_CATEGORIES : L.EXPENSE_CATEGORIES;
-    return [...new Set([...base, ...(data.customCategories || [])])];
+    if (kind === 'income') return [...L.INCOME_CATEGORIES];
+    return [...new Set([...L.EXPENSE_CATEGORIES, ...(data.customCategories || [])])];
   }
   function monthTx() {
     const month = L.localISODate().slice(0, 7);
@@ -313,7 +313,7 @@
       const b = t.balances[a.id] || 0;
       const isCredit = a.type === 'credit';
       const related = data.transactions.filter(tx => tx.accountId === a.id || tx.fromAccountId === a.id || tx.toAccountId === a.id).length;
-      return `<article class=\"account-card\"><div class=\"account-card-top\"><div class=\"account-symbol ${isCredit ? 'account-symbol-credit' : ''}\">${accountIcon(a.type)}</div><span class=\"account-kind\">${esc(accountTypeLabel(a.type))}</span></div><h3>${esc(a.name)}</h3><p>${isCredit ? 'Outstanding debt tracked' : 'Calculated account balance'}</p><div class=\"account-balance ${isCredit ? 'balance-debt' : ''}\">${money(b)}</div><div class=\"account-card-footer\"><span>Tracking since ${esc(fmtDate(a.openingDate))} · ${related} record${related === 1 ? '' : 's'}</span><button class=\"text-link\" data-reconcile-account=\"${esc(a.id)}\">Confirm balance ↗</button></div><button class=\"account-remove\" data-delete-account=\"${esc(a.id)}\" title=\"Remove account\" aria-label=\"Remove ${esc(a.name)}\">×</button></article>`;
+      return `<article class=\"account-card\"><div class=\"account-card-top\"><div class=\"account-symbol ${isCredit ? 'account-symbol-credit' : ''}\">${accountIcon(a.type)}</div><span class=\"account-kind\">${esc(accountTypeLabel(a.type))}</span></div><h3>${esc(a.name)}</h3><p>${isCredit ? 'Outstanding debt tracked' : 'Calculated account balance'}</p><div class=\"account-balance ${isCredit ? 'balance-debt' : ''}\">${money(b)}</div><div class=\"account-card-footer\"><span>Tracking since ${esc(fmtDate(a.openingDate))} · ${related} record${related === 1 ? '' : 's'}</span><span class=\"account-card-actions\"><button class=\"text-link\" data-edit-account=\"${esc(a.id)}\">Edit account</button><button class=\"text-link\" data-reconcile-account=\"${esc(a.id)}\">Confirm balance ↗</button></span></div><button class=\"account-remove\" data-delete-account=\"${esc(a.id)}\" title=\"Remove account\" aria-label=\"Remove ${esc(a.name)}\">×</button></article>`;
     }).join('') : `<div class=\"empty-state accounts-empty\"><div class=\"empty-icon\">▤</div><strong>No accounts added yet</strong><p>Add cash, a bank account, an e-wallet or a credit card. Xpense will calculate balances from your opening amounts and records.</p><button class=\"button button-primary\" id=\"emptyAddAccount\">+ Add your first account</button></div>`;
   }
   function openTransactionModal(kind = 'expense') {
@@ -390,15 +390,44 @@
     data.transactions.push(tx);
     saveData(); closeModal('transactionModal'); renderAll(); showToast('Transaction recorded. Your overview is updated.');
   }
-  function openAccountModal() {
-    activeAccountEditId = null;
+  function openAccountModal(accountId = null) {
+    const account = accountId ? data.accounts.find(item => item.id === accountId) : null;
+    if (accountId && !account) {
+      showToast('That account could not be found.', 'error');
+      return;
+    }
+    activeAccountEditId = account ? account.id : null;
+    const hasHistory = account ? data.transactions.some(tx =>
+      tx.accountId === account.id || tx.fromAccountId === account.id || tx.toAccountId === account.id
+    ) : false;
+
     $('#accountForm').reset();
-    $('#accountModalTitle').textContent = 'Add an account';
-    $('#openingBalance').value = '0';
-    $('#accountStartDate').value = L.localISODate();
-    $('#accountType').disabled = false;
-    $('#openingBalanceLabel').innerHTML = 'Starting balance (₱) <b>*</b>';
+    $('#accountModalTitle').textContent = account ? 'Edit account' : 'Add an account';
+    $('#accountName').value = account ? account.name : '';
+    $('#accountType').value = account ? account.type : 'cash';
+    $('#openingBalance').value = account ? Number(account.openingBalance).toFixed(2) : '0';
+    $('#accountStartDate').value = account ? account.openingDate : L.localISODate();
+    $('#accountType').disabled = hasHistory;
+    $('#openingBalance').disabled = hasHistory;
+    $('#accountStartDate').disabled = hasHistory;
+    $('#openingBalanceLabel').innerHTML = account && account.type === 'credit'
+      ? 'Starting amount owed (₱) <b>*</b>'
+      : 'Starting balance (₱) <b>*</b>';
     updateOpeningHelp();
+    $('#openingBalanceHelp').textContent = hasHistory
+      ? 'Locked because this account has transaction history. The opening amount is part of your historical ledger.'
+      : account && account.type === 'credit'
+        ? 'Enter the card debt at the beginning of your tracking date, as a positive amount.'
+        : 'Enter the balance at the beginning of your tracking date. Record transactions on or after that date.';
+    $('#accountDateHelp').textContent = hasHistory
+      ? 'Locked because changing the tracking start would exclude part of this account’s ledger.'
+      : 'Choose an earlier date if you want to record past activity, and use the balance from that starting point.';
+    $('#accountFormFootnote').textContent = hasHistory
+      ? 'Transaction history locks type, opening balance and start date; renaming remains available.'
+      : account
+        ? 'No transactions are linked, so the account’s starting details can be changed safely.'
+        : 'You can rename this account later. Starting details lock once transactions are recorded.';
+    $('#accountSaveLabel').textContent = account ? 'Save changes' : 'Add account →';
     $('#accountError').classList.add('hidden');
     openModal('accountModal');
   }
@@ -413,12 +442,58 @@
     const type = $('#accountType').value;
     const openingBalance = Number($('#openingBalance').value);
     const openingDate = $('#accountStartDate').value;
+    const existing = activeAccountEditId ? data.accounts.find(account => account.id === activeAccountEditId) : null;
+    const hasHistory = existing ? data.transactions.some(tx =>
+      tx.accountId === existing.id || tx.fromAccountId === existing.id || tx.toAccountId === existing.id
+    ) : false;
+
     if (!name) { $('#accountError').textContent = 'Enter an account name.'; $('#accountError').classList.remove('hidden'); return; }
-    if (!Number.isFinite(openingBalance) || openingBalance < 0) { $('#accountError').textContent = 'Enter a valid starting balance of zero or more.'; $('#accountError').classList.remove('hidden'); return; }
-    if (!L.isValidISODate(openingDate) || openingDate > L.localISODate()) { $('#accountError').textContent = 'Choose a valid tracking start date that is today or earlier.'; $('#accountError').classList.remove('hidden'); return; }
-    if (data.accounts.some(a => a.name.toLowerCase() === name.toLowerCase())) { $('#accountError').textContent = 'An account with that name already exists. Use a name that distinguishes it.'; $('#accountError').classList.remove('hidden'); return; }
+    if (data.accounts.some(account => account.id !== activeAccountEditId &&
+        account.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      $('#accountError').textContent = 'An account with that name already exists. Use a name that distinguishes it.';
+      $('#accountError').classList.remove('hidden');
+      return;
+    }
+
+    if (existing) {
+      if (!hasHistory) {
+        if (!Number.isFinite(openingBalance) || openingBalance < 0) {
+          $('#accountError').textContent = 'Enter a valid starting balance of zero or more.';
+          $('#accountError').classList.remove('hidden');
+          return;
+        }
+        if (!L.isValidISODate(openingDate) || openingDate > L.localISODate()) {
+          $('#accountError').textContent = 'Choose a valid tracking start date that is today or earlier.';
+          $('#accountError').classList.remove('hidden');
+          return;
+        }
+        existing.type = type;
+        existing.openingBalance = L.roundMoney(openingBalance);
+        existing.openingDate = openingDate;
+      }
+      existing.name = name;
+      saveData();
+      closeModal('accountModal');
+      renderAll();
+      showToast('Account updated.');
+      return;
+    }
+
+    if (!Number.isFinite(openingBalance) || openingBalance < 0) {
+      $('#accountError').textContent = 'Enter a valid starting balance of zero or more.';
+      $('#accountError').classList.remove('hidden');
+      return;
+    }
+    if (!L.isValidISODate(openingDate) || openingDate > L.localISODate()) {
+      $('#accountError').textContent = 'Choose a valid tracking start date that is today or earlier.';
+      $('#accountError').classList.remove('hidden');
+      return;
+    }
     data.accounts.push({ id: newId('acc'), name, type, openingBalance: L.roundMoney(openingBalance), openingDate, createdAt: new Date().toISOString() });
-    saveData(); closeModal('accountModal'); renderAll(); showToast('Account added. Record activity to keep its balance current.');
+    saveData();
+    closeModal('accountModal');
+    renderAll();
+    showToast('Account added. Record activity to keep its balance current.');
   }
   function deleteTransaction(txId) {
     const tx = data.transactions.find(t => t.id === txId);
@@ -726,6 +801,8 @@
     if (rec) reconcileAccount(rec.dataset.reconcileAccount);
     const delTx = ev.target.closest('[data-delete-tx]');
     if (delTx) deleteTransaction(delTx.dataset.deleteTx);
+    const editAcc = ev.target.closest('[data-edit-account]');
+    if (editAcc) openAccountModal(editAcc.dataset.editAccount);
     const delAcc = ev.target.closest('[data-delete-account]');
     if (delAcc) deleteAccount(delAcc.dataset.deleteAccount);
   });

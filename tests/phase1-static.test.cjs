@@ -31,3 +31,17 @@ test('full backup and restore controls are present and wired', () => {
   assert.ok(app.includes('function exportFullBackup'));
   assert.ok(app.includes('function importFullBackup'));
 });
+
+
+test('custom budget categories are not offered as income categories', () => {
+  assert.ok(app.includes("if (kind === 'income') return [...L.INCOME_CATEGORIES]"));
+  assert.ok(app.includes("...L.EXPENSE_CATEGORIES, ...(data.customCategories || [])"));
+});
+
+test('accounts have an edit action and lock ledger-defining fields once history exists', () => {
+  assert.ok(html.includes('data-edit-account='));
+  assert.ok(app.includes('function openAccountModal(accountId = null)'));
+  assert.ok(app.includes("$('#accountType').disabled = hasHistory"));
+  assert.ok(app.includes("$('#openingBalance').disabled = hasHistory"));
+  assert.ok(app.includes("$('#accountStartDate').disabled = hasHistory"));
+});
