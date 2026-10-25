@@ -13,6 +13,9 @@
   let toastTimer = null;
   let activeAccountEditId = null;
   let activeReconcileAccountId = null;
+  let storageRecoveryBlocked = false;
+  let pendingStorageWarning = false;
+  let startupStorageWarning = '';
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -75,23 +78,54 @@
   }
   function freshData() { return { version: 1, demo: false, accounts: [], transactions: [], budgets: { ...DEFAULT_BUDGETS }, customCategories: [], createdAt: new Date().toISOString() }; }
   function loadData() {
+    let raw;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch (err) {
+      startupStorageWarning = 'Browser storage is unavailable. Xpense can run for this session, but entries may not survive a reload.';
+      console.warn('Could not read Xpense local data.', err);
+      return createDemoData();
+    }
+    if (raw !== null) {
+      try {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.version === 1 && Array.isArray(parsed.accounts) && Array.isArray(parsed.transactions) && parsed.budgets) return parsed;
+        if (parsed && parsed.version === 1 && Array.isArray(parsed.accounts) &&
+            Array.isArray(parsed.transactions) && parsed.budgets &&
+            typeof parsed.budgets === 'object' && !Array.isArray(parsed.budgets)) return parsed;
+        storageRecoveryBlocked = true;
+        startupStorageWarning = 'Xpense found saved data it does not recognize and has left it untouched. Restore a full JSON backup, or choose Start fresh only if you accept replacing the unreadable data.';
+      } catch (err) {
+        storageRecoveryBlocked = true;
+        startupStorageWarning = 'Xpense could not read its saved data and has left it untouched. Restore a full JSON backup, or choose Start fresh only if you accept replacing the unreadable data.';
+        console.warn('Could not parse Xpense local data.', err);
       }
-    } catch (err) { console.warn('Could not load Xpense local data. Starting a fresh workspace.', err); }
+      return createDemoData();
+    }
     const initial = createDemoData();
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(initial)); } catch (err) { console.warn('Local storage is unavailable.', err); }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+    } catch (err) {
+      startupStorageWarning = 'Browser storage is unavailable. Xpense can run for this session, but entries may not survive a reload.';
+      console.warn('Could not initialize Xpense local storage.', err);
+    }
     return initial;
   }
-  function saveData() {
+  function saveData(allowReplaceUnreadable = false) {
+    if (storageRecoveryBlocked && !allowReplaceUnreadable) {
+      pendingStorageWarning = true;
+      return false;
+    }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      storageRecoveryBlocked = false;
+      pendingStorageWarning = false;
+      startupStorageWarning = '';
+      return true;
     } catch (err) {
+      pendingStorageWarning = true;
+      startupStorageWarning = 'Browser storage could not save the latest changes. They may exist only in this session; export a full backup if possible and avoid reloading.';
       console.error('Could not save Xpense data.', err);
-      showToast('Could not save locally. Browser storage may be full or unavailable.', 'error');
+      return false;
     }
   }
   function accountsList() { return [...data.accounts]; }
@@ -105,9 +139,17 @@
     return data.transactions.filter(tx => tx.date?.slice(0, 7) === month);
   }
   function showToast(message, type = 'success') {
+    if (pendingStorageWarning) {
+      const detail = storageRecoveryBlocked
+        ? 'Saved data was left untouched. This change exists only in memory and will be lost if you reload. Restore a full backup, or intentionally start fresh.'
+        : 'Browser storage could not save this change. It may be lost on reload; export a full backup if possible.';
+      message = type === 'error' ? message + ' ' + detail : detail;
+      type = 'error';
+      pendingStorageWarning = false;
+    }
     const toast = $('#toast');
     toast.textContent = message;
-    toast.className = `toast show ${type === 'error' ? 'toast-error' : ''}`;
+    toast.className = 'toast show ' + (type === 'error' ? 'toast-error' : '');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { toast.className = 'toast'; }, 3200);
   }
@@ -148,6 +190,12 @@
     $('#demoNotice').classList.toggle('hidden', !data.demo);
     $('#startFreshBtn').textContent = data.demo ? 'Start fresh' : 'Clear workspace';
     $('#useOwnDataBtn').textContent = 'Start with my own data →';
+    const warning = $('#storageWarning');
+    warning.textContent = startupStorageWarning;
+    warning.classList.toggle('hidden', !startupStorageWarning);
+    $('.local-save').innerHTML = startupStorageWarning
+      ? '<span class="local-dot storage-error-dot"></span> Storage needs attention'
+      : '<span class="local-dot"></span> Saved on this device';
     $('#activityCount').textContent = String(data.transactions.length);
     renderOverview(); renderActivity(); renderBudget(); renderAccounts(); switchView(activeView);
   }
@@ -181,7 +229,7 @@
     $('#statNetWorth').textContent = money(totals.netWorth);
     $('#expenseCompare').textContent = `${totals.monthTx.filter(t => t.kind === 'expense').length} recorded expense${totals.monthTx.filter(t => t.kind === 'expense').length === 1 ? '' : 's'} this month`;
     $('#liabilityNote').textContent = `${money(totals.liabilities)} in tracked debt`;
-    const series = L.monthlySeries(data.transactions, new Date(), 6);
+    const series = L.monthlySeries(data.transactions, new Date(), 6, data.accounts);
     const max = Math.max(1, ...series.flatMap(x => [x.income, x.expenses]));
     $('#cashflowChart').innerHTML = series.map(m => {
       const ih = Math.max(m.income > 0 ? 3 : 0, m.income / max * 116);
@@ -189,7 +237,7 @@
       const current = m.key === L.localISODate().slice(0, 7) ? ' current-month' : '';
       return `<div class=\"chart-month${current}\"><div class=\"bar-pair\"><div class=\"chart-bar income-bar\" style=\"height:${ih}px\" title=\"Income ${esc(money(m.income))}\"></div><div class=\"chart-bar expense-bar\" style=\"height:${eh}px\" title=\"Expenses ${esc(money(m.expenses))}\"></div></div><span>${esc(m.label)}</span></div>`;
     }).join('');
-    const spending = L.categorySpend(data.transactions);
+    const spending = L.categorySpend(data.transactions, undefined, data.accounts);
     const allBudgetTotal = Object.values(data.budgets).reduce((s, v) => s + Number(v || 0), 0);
     const totalSpentBudgeted = Object.keys(data.budgets).reduce((s, category) => s + Number(spending[category] || 0), 0);
     $('#budgetTotal').textContent = compactMoney(allBudgetTotal);
@@ -235,7 +283,7 @@
     $('.activity-panel .transaction-table-wrap').classList.toggle('hidden', rows.length === 0);
   }
   function renderBudget() {
-    const spend = L.categorySpend(data.transactions);
+    const spend = L.categorySpend(data.transactions, undefined, data.accounts);
     const limits = Object.entries(data.budgets).filter(([category]) => category);
     const total = limits.reduce((s, [, v]) => s + Number(v || 0), 0);
     const spent = Object.values(spend).reduce((s, v) => s + Number(v || 0), 0);
@@ -367,7 +415,7 @@
     const openingDate = $('#accountStartDate').value;
     if (!name) { $('#accountError').textContent = 'Enter an account name.'; $('#accountError').classList.remove('hidden'); return; }
     if (!Number.isFinite(openingBalance) || openingBalance < 0) { $('#accountError').textContent = 'Enter a valid starting balance of zero or more.'; $('#accountError').classList.remove('hidden'); return; }
-    if (!openingDate || !/^\\d{4}-\\d{2}-\\d{2}$/.test(openingDate) || openingDate > L.localISODate()) { $('#accountError').textContent = 'Choose a valid tracking start date that is today or earlier.'; $('#accountError').classList.remove('hidden'); return; }
+    if (!L.isValidISODate(openingDate) || openingDate > L.localISODate()) { $('#accountError').textContent = 'Choose a valid tracking start date that is today or earlier.'; $('#accountError').classList.remove('hidden'); return; }
     if (data.accounts.some(a => a.name.toLowerCase() === name.toLowerCase())) { $('#accountError').textContent = 'An account with that name already exists. Use a name that distinguishes it.'; $('#accountError').classList.remove('hidden'); return; }
     data.accounts.push({ id: newId('acc'), name, type, openingBalance: L.roundMoney(openingBalance), openingDate, createdAt: new Date().toISOString() });
     saveData(); closeModal('accountModal'); renderAll(); showToast('Account added. Record activity to keep its balance current.');
@@ -452,6 +500,16 @@
     data.budgets[trimmed] = 0;
     saveData(); renderAll(); openBudgetEditor(trimmed); showToast('Category added. Set a monthly limit if useful.');
   }
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    window.setTimeout(() => { URL.revokeObjectURL(url); link.remove(); }, 1000);
+  }
+
   function exportCSV() {
     const header = ['date','type','amount_php','category','account','from_account','to_account','note','record_type','record_reference'];
     const map = accountMap();
@@ -462,22 +520,20 @@
     const csv = rows.map(row => row.map(cell => {
       let value = String(cell ?? '');
       // Reduce spreadsheet formula-injection risk in user-provided text fields.
-      if (typeof cell === 'string' && /^[\\s]*[=+@]/.test(value)) value = `'${value}`;
+      if (typeof cell === 'string' && /^[\s]*[=+\-@]/.test(value)) value = "'" + value;
       return `\"${value.replace(/\"/g, '\"\"')}\"`;
-    }).join(',')).join('\\r\\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `xpense-transactions-${L.localISODate()}.csv`; a.click(); URL.revokeObjectURL(url);
+    }).join(',')).join('\r\n');
+    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `xpense-transactions-${L.localISODate()}.csv`);
     showToast('Transaction CSV exported. Keep the file somewhere private.');
   }
   function startFresh() {
     const message = data.demo ? 'Clear the sample workspace and start with your own accounts? The sample data will be removed from this browser.' : 'Reset this workspace? All accounts, transactions and budget limits will be cleared from this browser.';
     if (!window.confirm(message)) return;
-    data = freshData(); saveData(); switchView('accounts'); renderAll(); openAccountModal(); showToast('Your personal workspace is ready. Add your first account.');
+    data = freshData(); saveData(true); switchView('accounts'); renderAll(); openAccountModal(); showToast('Your personal workspace is ready. Add your first account.');
   }
   function resetDemo() {
     if (!window.confirm('Replace this workspace with the Xpense sample data? Current local entries will be removed. Export your CSV first if you need to keep them.')) return;
-    data = createDemoData(); saveData(); activeView = 'overview'; renderAll(); showToast('Sample workspace restored.');
+    data = createDemoData(); saveData(true); activeView = 'overview'; renderAll(); showToast('Sample workspace restored.');
   }
 
   // Top-level navigation and shared actions
