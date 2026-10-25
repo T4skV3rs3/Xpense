@@ -39,7 +39,7 @@ test('custom budget categories are not offered as income categories', () => {
 });
 
 test('accounts have an edit action and lock ledger-defining fields once history exists', () => {
-  assert.ok(html.includes('data-edit-account='));
+  assert.ok(app.includes('data-edit-account='));
   assert.ok(app.includes('function openAccountModal(accountId = null)'));
   assert.ok(app.includes("$('#accountType').disabled = hasHistory"));
   assert.ok(app.includes("$('#openingBalance').disabled = hasHistory"));

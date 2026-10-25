@@ -12,3 +12,6 @@
 .export-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
 .export-actions .button{white-space:nowrap}
 @media(max-width:680px){.export-actions{width:100%;justify-content:flex-start}.activity-panel .panel-heading{align-items:flex-start;flex-wrap:wrap}}
+
+.account-card-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+@media(max-width:560px){.account-card-actions{gap:8px}.account-card-footer{align-items:flex-start}}
