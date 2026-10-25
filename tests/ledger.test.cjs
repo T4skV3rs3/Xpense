@@ -9,7 +9,7 @@ const accounts = [
 ];
 
 test('expense reduces an asset balance', () => {
-  assert.equal(L.accountBalance(accounts[0], [{ kind: 'expense', accountId: 'cash', amount: 25 }]), 75);
+  assert.equal(L.accountBalance(accounts[0], [{ kind: 'expense', accountId: 'cash', amount: 25, date: L.localISODate() }]), 75);
 });
 
 test('a credit-card purchase increases debt but records one expense', () => {
@@ -81,4 +81,56 @@ test('income cannot be deposited to a credit card unless categorized as a refund
   assert.ok(errors.some(e => e.includes('record incoming money as a refund')));
   const refundErrors = L.validateTransaction({ kind: 'income', accountId: 'card', amount: 50, date: L.localISODate(), category: 'Refund' }, accounts);
   assert.ok(!refundErrors.some(e => e.includes('record incoming money as a refund')));
+});
+
+
+test('calendar date validation rejects impossible days and invalid month values', () => {
+  assert.equal(L.isValidISODate('2026-10-25'), true);
+  assert.equal(L.isValidISODate('2024-02-29'), true);
+  assert.equal(L.isValidISODate('2026-02-29'), false);
+  assert.equal(L.isValidISODate('2026-02-31'), false);
+  assert.equal(L.isValidISODate('2026-13-01'), false);
+  assert.equal(L.isValidISODate('2026-1-01'), false);
+});
+
+test('account balances ignore undated and malformed legacy records', () => {
+  const account = { id: 'cash', name: 'Cash', type: 'cash', openingBalance: 100, openingDate: '2026-10-01' };
+  const tx = [
+    { kind: 'expense', accountId: 'cash', amount: 15, date: '2026-10-02' },
+    { kind: 'expense', accountId: 'cash', amount: 30 },
+    { kind: 'expense', accountId: 'cash', amount: 40, date: '2026-10-31' },
+    { kind: 'expense', accountId: 'cash', amount: 50, date: '2026-02-31' },
+    { kind: 'expense', accountId: 'cash', amount: 20, date: '2026-09-30' }
+  ];
+  assert.equal(L.accountBalance(account, tx), 85);
+});
+
+test('monthly metrics, category budgets and chart ignore activity outside tracking scope', () => {
+  const trackedAccounts = [
+    { id: 'cash', name: 'Cash', type: 'cash', openingBalance: 100, openingDate: '2026-10-10' },
+    { id: 'bank', name: 'Bank', type: 'bank', openingBalance: 500, openingDate: '2026-10-10' }
+  ];
+  const tx = [
+    { id: 'old-expense', kind: 'expense', accountId: 'cash', amount: 100, date: '2026-10-09', category: 'Food & drinks' },
+    { id: 'current-expense', kind: 'expense', accountId: 'cash', amount: 25, date: '2026-10-10', category: 'Food & drinks' },
+    { id: 'bad-account', kind: 'expense', accountId: 'missing', amount: 80, date: '2026-10-11', category: 'Food & drinks' },
+    { id: 'old-transfer', kind: 'transfer', fromAccountId: 'cash', toAccountId: 'bank', amount: 40, date: '2026-10-09' },
+    { id: 'current-income', kind: 'income', accountId: 'bank', amount: 200, date: '2026-10-12', category: 'Salary' }
+  ];
+  const snapshot = L.totals(trackedAccounts, tx, new Date('2026-10-15T12:00:00Z'));
+  assert.equal(snapshot.expenses, 25);
+  assert.equal(snapshot.income, 200);
+  assert.equal(snapshot.monthTx.length, 2);
+  assert.deepEqual(L.categorySpend(tx, '2026-10', trackedAccounts), { 'Food & drinks': 25 });
+  const series = L.monthlySeries(tx, new Date('2026-10-15T12:00:00Z'), 1, trackedAccounts);
+  assert.equal(series[0].expenses, 25);
+  assert.equal(series[0].income, 200);
+});
+
+test('transaction validator rejects impossible calendar dates', () => {
+  const errors = L.validateTransaction({
+    kind: 'expense', amount: 5, date: '2026-02-31',
+    accountId: 'cash', category: 'Food & drinks'
+  }, accounts);
+  assert.ok(errors.some(e => e.includes('valid date')));
 });
