@@ -28,7 +28,7 @@
   function roundMoney(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
 
   function transactionInScope(tx, accountById) {
-    if (!tx || !isValidISODate(tx.date)) return false;
+    if (!tx || !isValidISODate(tx.date) || tx.date > localISODate()) return false;
     const validForAccount = account => Boolean(account) &&
       (!account.openingDate || (isValidISODate(account.openingDate) && tx.date >= account.openingDate));
     if (tx.kind === 'transfer') {
@@ -45,7 +45,7 @@
   function accountBalance(account, transactions) {
     let balance = Number(account.openingBalance || 0);
     for (const tx of transactions) {
-      if (!isValidISODate(tx.date)) continue;
+      if (!isValidISODate(tx.date) || tx.date > localISODate()) continue;
       if (account.openingDate && (!isValidISODate(account.openingDate) || tx.date < account.openingDate)) continue;
       const amount = Number(tx.amount || 0);
       if (tx.kind === 'expense' && tx.accountId === account.id) {

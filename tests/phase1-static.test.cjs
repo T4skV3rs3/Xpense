@@ -11,9 +11,9 @@ test('account creation uses shared calendar-aware date validation', () => {
   assert.ok(!app.includes('!/^\\\\d{4}-\\\\d{2}-\\\\d{2}$/.test(openingDate)'));
 });
 
-test('CSV export uses correct row breaks and common formula-prefix protection', () => {
-  assert.ok(app.includes("}).join(',')).join('\\\\r\\\\n');"));
-  assert.ok(app.includes('/^[\\\\s]*[=+\\\\-@]/.test(value)'));
+test('CSV export uses row breaks and guards formula prefixes', () => {
+  assert.match(app, /join\('\\r\\n'\)/);
+  assert.match(app, /\^\[\\s\]\*\[=\+\\-@\]/);
 });
 
 test('persistence failures cannot be reported as success and unreadable stored data is protected', () => {
@@ -23,7 +23,7 @@ test('persistence failures cannot be reported as success and unreadable stored d
   assert.ok(html.includes('id="storageWarning"'));
 });
 
-test('full backup/restore controls are present and wired', () => {
+test('full backup and restore controls are present and wired', () => {
   for (const id of ['exportBackupBtn', 'importBackupBtn', 'importBackupFile']) {
     assert.ok(html.includes('id="' + id + '"'), 'missing control: ' + id);
   }
