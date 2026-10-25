@@ -59,3 +59,12 @@ The new household migration deliberately leaves the Phase 1 tables and owner-onl
 Household entries are budget projections and do not modify private account balances, personal net worth, or personal income/expense totals. A future one-step personal-plus-household entry flow must perform both writes atomically and keep any cross-reference in a non-exposed private schema. Do not loosen the personal policies to make shared entries work.
 
 See docs/phase-2-two-person-spec.md and docs/permissions-model.md for behavior and acceptance tests. Migration not applied; RLS/API integration tests remain required.
+
+
+## Backup and restore behavior
+
+- Full JSON backups include the local workspace object, schema version, and export timestamp.
+- Restore checks account IDs/types/start dates, transaction dates/account references, amounts, adjustment deltas, receipt metadata, budgets, and categories before replacing the current workspace.
+- Restore requires explicit confirmation; invalid files do not replace the current workspace.
+- If browser storage is unavailable, Xpense displays a persistent warning. If saved JSON is invalid or unsupported, it does not silently overwrite that value; edits remain in memory until a known-good backup is restored or the user explicitly starts fresh.
+- CSV export is not a full backup and cannot restore opening balances or budget settings.

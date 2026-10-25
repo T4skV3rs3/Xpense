@@ -35,7 +35,9 @@ Option B — check financial calculations:
 
 - The app currently stores data in this browser's localStorage using the key xpense-phase1-v1.
 - Local browser storage is **not** a reliable backup and does not sync across browsers or devices.
-- Use Activity → Export CSV to make an extra transaction backup and store it somewhere private.
+- Use **Activity → Full backup** to export accounts, opening balances/dates, transactions, budgets and custom categories as JSON. Use **Restore backup** to import a complete workspace after confirming replacement.
+- Use **Export CSV** for a spreadsheet-friendly transaction report; it is not a complete restore file.
+- Store backup files somewhere private because they contain sensitive financial records.
 - This MVP does not connect to BDO, UnionBank, GCash, or any bank/payment account. Do not enter bank credentials, PINs, CVVs, or one-time passwords into Xpense.
 - The receipt selector currently stores a record type and a text reference only. It does not upload or retain actual receipt images or PDFs.
 - A Supabase schema migration is checked into this repository as a cloud-backend foundation. It is not yet applied to a dedicated Xpense Supabase project, and the deployed app does not sync personal data to Supabase yet.
@@ -56,16 +58,21 @@ Before real users' financial information is stored in the cloud, add secure auth
     │   ├── ledger.js
     │   └── styles.css
     ├── tests/
-    │   └── ledger.test.cjs
+    │   ├── ledger.test.cjs
+    │   ├── household-schema.test.cjs
+    │   └── phase1-static.test.cjs
     ├── supabase/
     │   ├── config.toml
     │   └── migrations/
-    │       └── 20261023190000_phase1_schema.sql
+    │       ├── 20261023190000_phase1_schema.sql
+│       └── 20261024120000_two_person_households.sql
     ├── .github/workflows/
     │   └── ci.yml
     └── docs/
         ├── data-model.md
-        └── phase-1-spec.md
+        ├── phase-1-spec.md
+        ├── phase-2-two-person-spec.md
+        └── permissions-model.md
 
 ## License
 

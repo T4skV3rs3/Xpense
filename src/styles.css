@@ -8,3 +8,7 @@
 .reconcile-current{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;border-radius:10px;background:#f1f6f1;margin-bottom:18px}.reconcile-current span{font-size:10px;color:#788b7c}.reconcile-current strong{font-family:var(--heading);font-size:17px;letter-spacing:-.3px;color:#275840}.save-error{color:#a6583d}
 .storage-warning{margin:0 0 16px;padding:12px 14px;border:1px solid #d7a38e;border-radius:10px;background:#fff4ef;color:#8c3f27;font-size:13px;line-height:1.5}
 .storage-error-dot{background:#b85c3c!important}
+
+.export-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.export-actions .button{white-space:nowrap}
+@media(max-width:680px){.export-actions{width:100%;justify-content:flex-start}.activity-panel .panel-heading{align-items:flex-start;flex-wrap:wrap}}

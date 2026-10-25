@@ -510,6 +510,179 @@
     window.setTimeout(() => { URL.revokeObjectURL(url); link.remove(); }, 1000);
   }
 
+  function validateBackupPayload(payload) {
+    if (!payload || payload.format !== 'xpense-backup' || payload.formatVersion !== 1 ||
+        !payload.data || payload.data.version !== 1) {
+      throw new Error('Choose a full Xpense JSON backup created by the Export full backup button.');
+    }
+    const source = payload.data;
+    if (!Array.isArray(source.accounts) || !Array.isArray(source.transactions) ||
+        !source.budgets || typeof source.budgets !== 'object' || Array.isArray(source.budgets)) {
+      throw new Error('The backup structure is incomplete or unsupported.');
+    }
+    const validTypes = new Set(['cash', 'bank', 'ewallet', 'credit']);
+    const accountIds = new Set();
+    const accountNames = new Set();
+    const accounts = source.accounts.map(account => {
+      const name = typeof account?.name === 'string' ? account.name.trim() : '';
+      const nameKey = name.toLocaleLowerCase();
+      if (!account || typeof account.id !== 'string' || !account.id || accountIds.has(account.id)) {
+        throw new Error('Every account must have a unique ID.');
+      }
+      if (!name || name.length > 60 || accountNames.has(nameKey)) {
+        throw new Error('Account names must be unique and contain 1–60 characters.');
+      }
+      if (!validTypes.has(account.type) || !Number.isFinite(Number(account.openingBalance)) ||
+          Number(account.openingBalance) < 0 || !L.isValidISODate(account.openingDate) ||
+          account.openingDate > L.localISODate()) {
+        throw new Error('An account has an invalid type, opening balance, or tracking date.');
+      }
+      accountIds.add(account.id);
+      accountNames.add(nameKey);
+      return {
+        id: account.id, name: name, type: account.type,
+        openingBalance: L.roundMoney(Number(account.openingBalance)),
+        openingDate: account.openingDate,
+        createdAt: typeof account.createdAt === 'string' ? account.createdAt : new Date().toISOString()
+      };
+    });
+    const accountById = Object.fromEntries(accounts.map(account => [account.id, account]));
+    const transactionIds = new Set();
+    const validKinds = new Set(['expense', 'income', 'transfer', 'adjustment']);
+    const validEvidence = new Set(['none', 'paper', 'digital']);
+    const transactions = source.transactions.map(tx => {
+      const amount = Number(tx?.amount);
+      if (!tx || typeof tx.id !== 'string' || !tx.id || transactionIds.has(tx.id)) {
+        throw new Error('Every transaction must have a unique ID.');
+      }
+      if (!validKinds.has(tx.kind) || !Number.isFinite(amount) || amount <= 0 ||
+          !L.isValidISODate(tx.date) || tx.date > L.localISODate()) {
+        throw new Error('A transaction has an invalid type, amount, or date.');
+      }
+      const note = typeof tx.note === 'string' ? tx.note : '';
+      const evidenceType = tx.evidenceType || 'none';
+      const evidenceNote = typeof tx.evidenceNote === 'string' ? tx.evidenceNote : '';
+      if (note.length > 120 || evidenceNote.length > 160 || !validEvidence.has(evidenceType)) {
+        throw new Error('A transaction note or receipt reference is invalid.');
+      }
+      const clean = {
+        id: tx.id, kind: tx.kind, amount: L.roundMoney(amount), date: tx.date,
+        note: note, evidenceType: evidenceType, evidenceNote: evidenceNote,
+        createdAt: typeof tx.createdAt === 'string' ? tx.createdAt : new Date().toISOString()
+      };
+      if (tx.kind === 'expense' || tx.kind === 'income' || tx.kind === 'adjustment') {
+        const account = accountById[tx.accountId];
+        if (!account || tx.date < account.openingDate) {
+          throw new Error('A transaction references an unknown account or predates its tracking start.');
+        }
+        clean.accountId = tx.accountId;
+      }
+      if (tx.kind === 'expense' || tx.kind === 'income') {
+        if (typeof tx.category !== 'string' || !tx.category.trim() || tx.category.trim().length > 50) {
+          throw new Error('Every income or expense needs a category of 1–50 characters.');
+        }
+        if (tx.kind === 'income' && accountById[tx.accountId].type === 'credit' && tx.category !== 'Refund') {
+          throw new Error('Credit-card income must be categorized as Refund.');
+        }
+        clean.category = tx.category.trim();
+      }
+      if (tx.kind === 'transfer') {
+        const sourceAccount = accountById[tx.fromAccountId];
+        const destinationAccount = accountById[tx.toAccountId];
+        if (!sourceAccount || !destinationAccount || tx.fromAccountId === tx.toAccountId ||
+            tx.date < sourceAccount.openingDate || tx.date < destinationAccount.openingDate) {
+          throw new Error('A transfer references invalid accounts or predates a tracking start.');
+        }
+        clean.fromAccountId = tx.fromAccountId;
+        clean.toAccountId = tx.toAccountId;
+      }
+      if (tx.kind === 'adjustment') {
+        const delta = Number(tx.delta);
+        if (!Number.isFinite(delta) || Math.abs(Math.abs(delta) - amount) > 0.005) {
+          throw new Error('A reconciliation adjustment has an invalid signed difference.');
+        }
+        clean.delta = L.roundMoney(delta);
+      }
+      transactionIds.add(tx.id);
+      return clean;
+    });
+    const budgets = {};
+    for (const [rawCategory, rawValue] of Object.entries(source.budgets)) {
+      const category = rawCategory.trim();
+      const limit = Number(rawValue);
+      if (!category || category.length > 50 ||
+          ['__proto__', 'prototype', 'constructor'].includes(category.toLowerCase()) ||
+          !Number.isFinite(limit) || limit < 0) {
+        throw new Error('Every budget needs a valid category and non-negative limit.');
+      }
+      if (Object.keys(budgets).some(existing => existing.toLocaleLowerCase() === category.toLocaleLowerCase())) {
+        throw new Error('The backup contains duplicate budget categories.');
+      }
+      budgets[category] = L.roundMoney(limit);
+    }
+    if (!Array.isArray(source.customCategories) ||
+        source.customCategories.some(category => typeof category !== 'string' || !category.trim() || category.trim().length > 50)) {
+      throw new Error('The custom category list is invalid.');
+    }
+    const knownCategories = new Set([...L.EXPENSE_CATEGORIES, ...L.INCOME_CATEGORIES].map(category => category.toLocaleLowerCase()));
+    const customCategories = [...new Set([
+      ...source.customCategories.map(category => category.trim()),
+      ...Object.keys(budgets).filter(category => !knownCategories.has(category.toLocaleLowerCase()))
+    ])];
+    return {
+      version: 1, demo: Boolean(source.demo), accounts: accounts, transactions: transactions,
+      budgets: budgets, customCategories: customCategories,
+      createdAt: typeof source.createdAt === 'string' ? source.createdAt : new Date().toISOString()
+    };
+  }
+
+  function exportFullBackup() {
+    if (storageRecoveryBlocked) {
+      showToast('The saved data could not be read, so this is only temporary sample data. Restore a known-good backup or intentionally start fresh.', 'error');
+      return;
+    }
+    const payload = {
+      format: 'xpense-backup',
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      data: JSON.parse(JSON.stringify(data))
+    };
+    downloadBlob(
+      new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' }),
+      'xpense-full-backup-' + L.localISODate() + '.json'
+    );
+    showToast('Full backup exported. Store the JSON file somewhere private; it contains all local account and transaction data.');
+  }
+
+  function importFullBackup(event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Backup files must be 10 MB or smaller.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => showToast('The backup file could not be read.', 'error');
+    reader.onload = () => {
+      let imported;
+      try {
+        imported = validateBackupPayload(JSON.parse(String(reader.result || '')));
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'This is not a valid Xpense backup.', 'error');
+        return;
+      }
+      if (!window.confirm('Restore this full backup? It will replace the current workspace, including accounts, transactions, budgets and categories. Export a backup of the current workspace first if you need to keep it.')) return;
+      data = imported;
+      activeView = 'overview';
+      const saved = saveData(true);
+      renderAll();
+      if (saved) showToast('Full backup restored on this device.');
+      else showToast('The backup was loaded for this session but could not be saved in browser storage.', 'error');
+    };
+    reader.readAsText(file);
+  }
+
   function exportCSV() {
     const header = ['date','type','amount_php','category','account','from_account','to_account','note','record_type','record_reference'];
     const map = accountMap();
@@ -572,6 +745,9 @@
   $('#activityFilter').addEventListener('change', renderActivity);
   $('#activityMonth').addEventListener('change', renderActivity);
   $('#exportCsvBtn').addEventListener('click', exportCSV);
+  $('#exportBackupBtn').addEventListener('click', exportFullBackup);
+  $('#importBackupBtn').addEventListener('click', () => $('#importBackupFile').click());
+  $('#importBackupFile').addEventListener('change', importFullBackup);
   $('#startFreshBtn').addEventListener('click', startFresh);
   $('#useOwnDataBtn').addEventListener('click', startFresh);
   $('#resetDemoBtn').addEventListener('click', resetDemo);
