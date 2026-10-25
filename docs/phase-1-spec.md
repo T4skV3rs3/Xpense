@@ -22,7 +22,7 @@ Personal use for Philippine users who want to track cash, bank accounts, e-walle
 - Overview: tracked assets, recorded monthly expenses/income, estimated net worth, six-month income/expense comparison, category-budget snapshot and recent activity.
 - Activity: transaction search, type/month filters, record type/reference, delete-with-confirmation, CSV export.
 - Budget: monthly category limits, category spent/remaining/overrun and custom categories.
-- Accounts: account names/types, starting amounts/date, computed balances, tracked credit-card debt, reconciliation and account removal only when unreferenced.
+- Accounts: account names/types, starting amounts/date, computed balances, tracked credit-card debt, reconciliation and account removal only when unreferenced. Accounts can always be renamed; ledger-defining settings lock once activity references the account.
 - Transaction capture: amount, account or transfer endpoints, date, category, short note and optional receipt type/reference.
 - Validation: amount greater than zero, no same-account transfers, no future-dated completed transactions, no account activity before tracking start, no ordinary income posted to a credit card, and warnings for spending/transfers larger than tracked balances.
 - Persistence: local browser storage with a CSV export path. No external data transmission.
@@ -54,6 +54,8 @@ Personal use for Philippine users who want to track cash, bank accounts, e-walle
 - Paying a credit card from a bank account decreases both balances (cash and debt) but adds no second expense.
 - Transferring between two asset accounts does not change total tracked assets/net worth and isn't counted as spending or income.
 - Updating a budget limit updates progress in Budget and Overview.
+- Custom categories created from Budget are expense categories and do not appear as income categories.
+- An account with transaction history can be renamed without changing its account ID; its type, opening balance, and tracking start remain locked.
 - A reconciliation difference creates a visible adjustment entry and recalculates the selected account.
 - Reloading the same browser preserves local data.
 - Export produces a CSV of transaction data.

@@ -8,7 +8,7 @@ Xpense helps people record money events quickly, understand how those records af
 
 - **Overview:** tracked assets, monthly recorded income and expenses, tracked net worth, a six-month cash-flow chart, category budget progress, and recent activity.
 - **Quick Record:** record an expense, income, or transfer/payment with amount, account, category, date, short note, and optional paper-receipt/digital-record reference.
-- **Accounts:** manually track cash, bank accounts, e-wallets, and credit cards. Balances are calculated from opening amounts and transaction history.
+- **Accounts:** manually track cash, bank accounts, e-wallets, and credit cards. Balances are calculated from opening amounts and transaction history. Accounts can be renamed at any time; type, opening balance, and tracking-start date can be edited only before related transactions exist.
 - **Budget:** set category limits and review amounts spent, remaining, and over budget.
 - **Activity:** search and filter transactions, delete with confirmation, and export transactions to CSV.
 - **Balance Check:** compare a manually tracked balance to the current figure shown by the bank/wallet/card app. Discrepancies become explicit reconciliation entries.

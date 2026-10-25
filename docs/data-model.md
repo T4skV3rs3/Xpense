@@ -31,7 +31,7 @@ The current prototype stores one versioned object in browser `localStorage` unde
     }
   ],
   budgets: { "Food & drinks": 3500 },
-  customCategories: []
+  customCategories: [] // additional expense/budget categories
 }
 ```
 
@@ -47,6 +47,7 @@ Transfers use `fromAccountId` and `toAccountId` instead of `accountId`. Reconcil
 6. Expense only affects one account and counts once. Transfer affects two accounts but is excluded from income/expense totals.
 7. Reconciliation records are auditable transactions, not silent edits to the opening balance.
 8. User-provided strings are escaped before HTML rendering; CSV text that starts with common spreadsheet formula characters is prefixed to reduce formula-injection risk.
+9. After transactions reference an account, only its display name can be edited; changing its type or opening baseline would silently reinterpret history.
 
 ## Upgrade path (not implemented)
 
@@ -68,3 +69,6 @@ See docs/phase-2-two-person-spec.md and docs/permissions-model.md for behavior a
 - Restore requires explicit confirmation; invalid files do not replace the current workspace.
 - If browser storage is unavailable, Xpense displays a persistent warning. If saved JSON is invalid or unsupported, it does not silently overwrite that value; edits remain in memory until a known-good backup is restored or the user explicitly starts fresh.
 - CSV export is not a full backup and cannot restore opening balances or budget settings.
+
+
+Budget custom categories are treated as expense categories. The income selector uses the separate predefined income category list so a custom expense label does not accidentally become a source of income.
